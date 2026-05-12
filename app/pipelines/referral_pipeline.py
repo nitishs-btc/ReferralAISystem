@@ -23,6 +23,4 @@ class ReferralPipeline:
 
         extracted_data["validation"] = validation_result
 
-        return {
-            "analysis": extracted_data
-        }
+        return extracted_data

@@ -26,6 +26,7 @@ class ClinicalInformation(BaseModel):
     referral_reason: Optional[str] = None
     specialty: Optional[str] = None
     priority: Optional[str] = None
+    is_urgent: bool = False
     diagnosis: Optional[str] = None
     icd_codes: List[str] = []
     cpt_codes: List[str] = []

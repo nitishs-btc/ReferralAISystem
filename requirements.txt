@@ -1,10 +1,10 @@
 fastapi
 uvicorn
-python-multipart
 requests
 pydantic
 pydantic-settings
+python-dotenv
+python-multipart
+pdf2image
 pillow
 pytesseract
-pdf2image
-python-dotenv

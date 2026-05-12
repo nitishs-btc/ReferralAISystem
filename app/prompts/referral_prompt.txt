@@ -14,6 +14,25 @@ Tasks:
 9. Detect missing fields
 10. Determine if human review is needed
 
+IMPORTANT EXTRACTION RULES:
+
+1. Only mark urgency as Urgent if explicitly selected, checked, or clearly stated.
+2. Do NOT infer urgency from diagnosis or symptoms.
+3. If both Yes/No appear without clear checkbox selection:
+   assume Routine.
+4. Blank forms are NOT valid referrals.
+5. A referral is valid only if:
+   - patient_name exists
+   - provider_name exists
+   - referral_reason exists
+6. Missing required fields should trigger:
+   needs_human_review = true
+7. is_urgent must be:
+   - true only if urgency explicitly selected
+   - false if No selected
+   - false if unclear
+8. Do not infer urgency from diagnosis or symptoms.
+
 Rules:
 - Return ONLY valid JSON
 - If field missing return null
@@ -46,13 +65,14 @@ Return JSON:
   },
 
   "clinical_information": {
-    "referral_reason": "",
-    "specialty": "",
-    "priority": "",
-    "diagnosis": "",
-    "icd_codes": [],
-    "cpt_codes": []
-  },
+  "referral_reason": "",
+  "specialty": "",
+  "priority": "",
+  "is_urgent": false,
+  "diagnosis": "",
+  "icd_codes": [],
+  "cpt_codes": []
+},
 
   "validation": {
     "is_complete_referral": true,

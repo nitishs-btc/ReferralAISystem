@@ -9,11 +9,13 @@ class LLMService:
     @staticmethod
     def analyze_document(document_text: str):
 
-        # Load base prompt
-        with open("app/prompts/referral_prompt.txt", "r") as file:
+        with open(
+            "app/prompts/referral_prompt.txt",
+            "r"
+        ) as file:
+
             base_prompt = file.read()
 
-        # Final prompt
         prompt = f"""
 {base_prompt}
 
@@ -31,7 +33,7 @@ DOCUMENT:
                     "stream": False,
                     "format": "json",
                     "options": {
-                        "temperature": 3
+                        "temperature": 0
                     }
                 },
                 timeout=300
@@ -41,10 +43,14 @@ DOCUMENT:
 
             result = response.json()
 
-            raw_response = result.get("response", "")
+            raw_response = result.get(
+                "response",
+                ""
+            )
 
-            # Parse model JSON response
-            parsed_response = json.loads(raw_response)
+            parsed_response = json.loads(
+                raw_response
+            )
 
             return parsed_response
 
