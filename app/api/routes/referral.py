@@ -1,7 +1,6 @@
 from fastapi import APIRouter
 from fastapi import UploadFile
 from fastapi import File
-
 from app.pipelines.referral_pipeline import ReferralPipeline
 
 router = APIRouter(

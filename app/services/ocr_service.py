@@ -1,16 +1,13 @@
 import base64
 import io
-
 import requests
-
 from pdf2image import convert_from_bytes
-
 from app.core.config import settings
 
 
 class OCRService:
 
-    OCR_MODEL = "deepseek-ocr:latest"
+    OCR_MODEL = "glm-ocr:latest"
 
     BASE_URL = settings.OLLAMA_URL.replace(
         "/api/generate",
