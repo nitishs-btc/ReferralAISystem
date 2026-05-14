@@ -31,15 +31,19 @@ async def analyze_referral(
 
 @router.post("/analyze-batch")
 async def analyze_referrals_batch(
-    files: List[UploadFile] = File(...)
+    files: List[UploadFile] = File(..., description="Select multiple files (Ctrl+Click for multi-select, supports 100+ files)")
 ):
     """
-    Analyze multiple referral documents.
+    Analyze multiple referral documents (supports 100+ files).
     
-    Upload options:
-    - Multiple files selected together
-    - Folder contents (use webkitdirectory in frontend)
-    - ZIP or TAR archive files
+    **Swagger UI:** Use Ctrl+Click or Shift+Click to select multiple files.
+    
+    **Frontend folder upload:** Use webkitdirectory attribute:
+    ```html
+    <input type="file" webkitdirectory multiple>
+    ```
+    
+    Supports: PDF, images, Word docs, ZIP/TAR archives.
     
     Returns array of results for each file.
     """
