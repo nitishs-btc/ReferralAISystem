@@ -36,10 +36,10 @@ class ReferralPipeline:
         extracted_data["validation"] = validation_result
 
         return {
-            "raw_text": ocr_result["raw_text"],
-            "markdown": ocr_result["markdown"],
+            "total_pages": ocr_result["total_pages"],
             "extracted_data": extracted_data
         }
+
 
     @staticmethod
     async def process_batch(files: List[UploadFile]):

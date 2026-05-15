@@ -3,8 +3,6 @@ import tempfile
 
 from docling.document_converter import DocumentConverter
 
-from app.pipelines.file_handler import FileHandler
-
 
 class OCRService:
 
@@ -34,13 +32,16 @@ class OCRService:
 
             document = result.document
 
-            markdown_output = document.export_to_markdown()
+            full_markdown = document.export_to_markdown()
 
-            text_output = document.export_to_text()
+            full_text = document.export_to_text()
+
+            total_pages = len(document.pages)
 
             return {
-                "raw_text": text_output,
-                "markdown": markdown_output
+                "raw_text": full_text,
+                "markdown": full_markdown,
+                "total_pages": total_pages
             }
 
         finally:
