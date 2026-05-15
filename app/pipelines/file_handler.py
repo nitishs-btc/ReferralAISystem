@@ -4,7 +4,7 @@ import tarfile
 from PIL import Image
 from pdf2image import convert_from_bytes
 
-POPPLER_PATH = r"C:\Users\Ramyakrishna\poppler\poppler-24.08.0\Library\bin"
+# POPPLER_PATH = r"C:\Users\Ramyakrishna\poppler\poppler-24.08.0\Library\bin"
 
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif", ".webp"}
 SUPPORTED_DOC_EXTENSIONS = {".pdf", ".doc", ".docx"}
@@ -79,8 +79,7 @@ class FileHandler:
 
         pages = convert_from_bytes(
             content,
-            dpi=100,
-            poppler_path=POPPLER_PATH
+            dpi=300
         )
 
         return [FileHandler.prepare_image(page) for page in pages]

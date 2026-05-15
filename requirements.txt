@@ -1,11 +1,26 @@
 fastapi
 uvicorn
 requests
+
 pydantic
 pydantic-settings
 python-dotenv
 python-multipart
+
+numpy==1.26.4
+opencv-python==4.6.0.66
+
+paddlepaddle
+paddleocr==2.7.3
+
+# Docling
+docling
+transformers
+torch
+
 pdf2image
 pillow
-pytesseract
 python-docx
+
+orjson
+ujson

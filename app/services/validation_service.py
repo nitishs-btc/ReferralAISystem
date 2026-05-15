@@ -30,7 +30,7 @@ class ValidationService:
         # IMPORTANT FIX
         # If required data missing -> NOT valid referral
         if not is_complete:
-            data["is_referral_document"] = False
+            data["is_referral_document"] = True
             data["document_type"] = "Incomplete Referral"
 
         return {
