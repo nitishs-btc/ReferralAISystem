@@ -1,260 +1,343 @@
-import asyncio
-from typing import List
+from time import perf_counter
 
 from fastapi import UploadFile
 
-from app.services.ocr_service import OCRService
+from app.core.config import settings
+from app.core.exceptions import OCRProcessingError
+from app.schemas.referral import (
+    ApiReferralData,
+    ClassificationResult,
+    DocumentAnalysisResult,
+    DocumentCategory,
+    DocumentState,
+    ExtractedReferralData,
+    FileMetadata,
+    OCRResult,
+    ProcessingTimings,
+    ReferralType,
+    ValidationInformation,
+)
+from app.services.batch_orchestrator import BatchOrchestrator
+from app.services.classification_service import ClassificationService
+from app.services.confidence_fusion_service import ConfidenceFusionService
+from app.services.extraction_service import ExtractionService
+from app.services.file_handler_service import FileHandlerService, NormalizedDocument
 from app.services.llm_service import LLMService
+from app.services.logging_service import LoggingService
+from app.services.ocr_service import OCRService
+from app.services.review_routing_service import ReviewRoutingService
 from app.services.validation_service import ValidationService
-
-from app.pipelines.file_handler import FileHandler
-
-
-MAX_CONCURRENT = 2
 
 
 class ReferralPipeline:
+    _instance: "ReferralPipeline | None" = None
+
+    def __init__(self) -> None:
+        self.logger = LoggingService()
+        self.file_handler = FileHandlerService()
+        self.llm_service = LLMService()
+        self.ocr_service = OCRService()
+        self.classification_service = ClassificationService(self.llm_service)
+        self.extraction_service = ExtractionService(self.llm_service)
+        self.validation_service = ValidationService()
+        self.confidence_fusion_service = ConfidenceFusionService()
+        self.review_routing_service = ReviewRoutingService()
+        self.batch_orchestrator = BatchOrchestrator(self, self.file_handler)
+
+    @classmethod
+    def instance(cls) -> "ReferralPipeline":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
     @staticmethod
-    async def process(file):
-
-        # OCR
-        ocr_result = await OCRService.extract_document(
-            file
-        )
-
-        # LLM Extraction
-        extracted_data = LLMService.analyze_document(
-            ocr_result
-        )
-
-        # Validation
-        validation_result = ValidationService.validate(
-            extracted_data
-        )
-
-        extracted_data["validation"] = validation_result
-
-        return {
-            "total_pages": ocr_result["total_pages"],
-            "extracted_data": extracted_data
-        }
-
+    async def process(file: UploadFile):
+        pipeline = ReferralPipeline.instance()
+        documents = await pipeline.file_handler.normalize_upload(file)
+        try:
+            if len(documents) != 1:
+                raise ValueError("Single document endpoint received an archive or multiple logical documents.")
+            result = await pipeline.process_document(documents[0])
+            return pipeline.to_api_data(result).model_dump()
+        finally:
+            await pipeline.file_handler.cleanup_documents(documents)
 
     @staticmethod
-    async def process_batch(files: List[UploadFile]):
+    async def process_batch(files: list[UploadFile]):
+        pipeline = ReferralPipeline.instance()
+        return pipeline.batch_orchestrator.process_uploads(files)
 
-        semaphore = asyncio.Semaphore(MAX_CONCURRENT)
+    @staticmethod
+    async def process_archive(file: UploadFile):
+        pipeline = ReferralPipeline.instance()
+        return pipeline.batch_orchestrator.process_archive(file)
 
-        async def process_single_upload(file):
+    async def process_document(self, document: NormalizedDocument) -> DocumentAnalysisResult:
+        start_total = perf_counter()
+        timings = ProcessingTimings()
+        self.logger.info("document_processing_started", stage="pipeline", document_id=document.document_id, filename=document.filename)
 
-            if FileHandler.is_archive(file.filename):
-                archive_results = await ReferralPipeline.process_archive(file)
-                return archive_results["results"]
-
-            file_result = {
-                "filename": file.filename,
-                "status": "success",
-                "data": None,
-                "error": None
-            }
-
-            if not FileHandler.is_supported(file.filename):
-
-                file_result["status"] = "skipped"
-                file_result["error"] = "Unsupported file type"
-
-                return [file_result]
-
-            try:
-
-                async with semaphore:
-
-                    data = await ReferralPipeline.process(file)
-
-                    file_result["data"] = data
-
-            except Exception as e:
-
-                file_result["status"] = "error"
-                file_result["error"] = str(e)
-
-            return [file_result]
-
-        tasks = [
-            process_single_upload(file)
-            for file in files
-        ]
-
-        all_results = await asyncio.gather(*tasks)
-
-        results = []
-
-        for file_results in all_results:
-            results.extend(file_results)
-
-        successful = sum(
-            1 for r in results
-            if r["status"] == "success"
+        file_metadata = FileMetadata(
+            filename=document.filename,
+            source_filename=document.source_filename,
+            content_type=document.content_type,
+            file_extension=document.file_extension,
+            file_size_bytes=document.file_size_bytes,
+            is_archive_member=document.is_archive_member,
         )
 
-        failed = len(results) - successful
+        ocr_start = perf_counter()
+        try:
+            ocr = await self.ocr_service.extract(document)
+        except OCRProcessingError as exc:
+            ocr = OCRResult(corrupted_document=True, total_pages=0, raw_text="", markdown="")
+            classification = ClassificationResult(
+                document_state=DocumentState.CORRUPTED_DOCUMENT,
+                document_type="Corrupted Document",
+                document_category=DocumentCategory.UNKNOWN,
+                referral_type=ReferralType.UNKNOWN,
+                is_referral_candidate=False,
+                confidence=0.0,
+            )
+            validation = ValidationInformation(
+                is_complete_referral=False,
+                missing_fields=[],
+                warnings=["OCR processing failed."],
+                needs_human_review=True,
+                validation_confidence=0.0,
+                applied_rule_profile="corrupted_document",
+            )
+            extracted = ExtractedReferralData(
+                is_referral_document=False,
+                document_type="Corrupted Document",
+                document_category=DocumentCategory.UNKNOWN.value,
+                referral_type=ReferralType.UNKNOWN.value,
+                validation=validation,
+            )
+            confidence = self.confidence_fusion_service.fuse(
+                classification=classification,
+                extracted_data=extracted,
+                validation=validation,
+                ocr=ocr,
+            )
+            review = self.review_routing_service.route(
+                classification=classification,
+                confidence=confidence,
+                validation=validation,
+                ocr=ocr,
+            )
+            timings.ocr_ms = round((perf_counter() - ocr_start) * 1000, 2)
+            timings.total_ms = round((perf_counter() - start_total) * 1000, 2)
+            return DocumentAnalysisResult(
+                document_id=document.document_id,
+                status="error",
+                file=file_metadata,
+                total_pages=0,
+                document_state=DocumentState.CORRUPTED_DOCUMENT,
+                document_type="Corrupted Document",
+                document_category=DocumentCategory.UNKNOWN.value,
+                referral_type=ReferralType.UNKNOWN.value,
+                ocr=ocr,
+                classification=classification,
+                extracted_data=extracted,
+                validation=validation,
+                confidence=confidence,
+                review=review,
+                timings=timings,
+                errors=[str(exc)],
+                audit={"pipeline_version": "2.0", "degraded_mode": True},
+            )
+        timings.ocr_ms = round((perf_counter() - ocr_start) * 1000, 2)
 
-        return {
-            "summary": {
-                "total_files": len(results),
-                "successful": successful,
-                "failed": failed
+        classification_start = perf_counter()
+        classification = await self.classification_service.classify(document_id=document.document_id, ocr=ocr)
+        timings.classification_ms = round((perf_counter() - classification_start) * 1000, 2)
+
+        extraction_start = perf_counter()
+        if classification.is_referral_candidate:
+            extracted = await self.extraction_service.extract(
+                document_id=document.document_id,
+                classification=classification,
+                ocr=ocr,
+            )
+        else:
+            extracted = ExtractedReferralData(
+                is_referral_document=False,
+                document_type=classification.document_type,
+                document_category=classification.document_category.value,
+                referral_type=classification.referral_type.value,
+            )
+        timings.extraction_ms = round((perf_counter() - extraction_start) * 1000, 2)
+
+        validation_start = perf_counter()
+        validation = self.validation_service.validate(
+            classification=classification,
+            extracted_data=extracted,
+            ocr=ocr,
+        )
+        extracted.validation = validation
+        timings.validation_ms = round((perf_counter() - validation_start) * 1000, 2)
+
+        fusion_start = perf_counter()
+        confidence = self.confidence_fusion_service.fuse(
+            classification=classification,
+            extracted_data=extracted,
+            validation=validation,
+            ocr=ocr,
+        )
+        timings.fusion_ms = round((perf_counter() - fusion_start) * 1000, 2)
+
+        document_state = self._resolve_final_state(classification, extracted, validation, confidence, ocr)
+        classification.document_state = document_state
+        if document_state == DocumentState.INCOMPLETE_REFERRAL:
+            extracted.document_type = "Incomplete Referral"
+        elif document_state == DocumentState.SELF_REFERRAL:
+            extracted.document_type = "Self Referral Form"
+
+        review_start = perf_counter()
+        review = self.review_routing_service.route(
+            classification=classification,
+            confidence=confidence,
+            validation=validation,
+            ocr=ocr,
+        )
+        timings.review_ms = round((perf_counter() - review_start) * 1000, 2)
+        timings.total_ms = round((perf_counter() - start_total) * 1000, 2)
+
+        self.logger.info(
+            "document_processing_completed",
+            stage="pipeline",
+            document_id=document.document_id,
+            document_state=document_state.value,
+            total_ms=timings.total_ms,
+        )
+
+        return DocumentAnalysisResult(
+            document_id=document.document_id,
+            status="success",
+            file=file_metadata,
+            total_pages=ocr.total_pages,
+            document_state=document_state,
+            document_type=extracted.document_type or classification.document_type,
+            document_category=classification.document_category.value,
+            referral_type=classification.referral_type.value,
+            ocr=ocr,
+            classification=classification,
+            extracted_data=extracted,
+            validation=validation,
+            confidence=confidence,
+            review=review,
+            timings=timings,
+            errors=[],
+            audit={
+                "pipeline_version": "2.0",
+                "llm_available": classification.llm_available,
+                "needs_human_review": review.needs_human_review,
             },
-            "results": results
-        }
-
-    @staticmethod
-    async def process_archive(file):
-
-        try:
-
-            extracted_files = await FileHandler.extract_archive(file)
-
-            semaphore = asyncio.Semaphore(MAX_CONCURRENT)
-
-            async def process_single(filename, content):
-
-                async with semaphore:
-
-                    return await ReferralPipeline.process_single_file(
-                        filename,
-                        content
-                    )
-
-            tasks = [
-                process_single(filename, content)
-                for filename, content in extracted_files
-            ]
-
-            results = await asyncio.gather(*tasks)
-
-            successful = sum(
-                1 for r in results
-                if r["status"] == "success"
-            )
-
-            failed = len(results) - successful
-
-            return {
-                "summary": {
-                    "total_files": len(results),
-                    "successful": successful,
-                    "failed": failed
-                },
-                "results": list(results)
-            }
-
-        except Exception as e:
-
-            return {
-                "summary": {
-                    "total_files": 1,
-                    "successful": 0,
-                    "failed": 1
-                },
-                "results": [{
-                    "filename": file.filename,
-                    "status": "error",
-                    "data": None,
-                    "error": f"Archive extraction failed: {str(e)}"
-                }]
-            }
-
-    @staticmethod
-    async def process_single_file(
-        filename: str,
-        content: bytes
-    ):
-
-        file_result = {
-            "filename": filename,
-            "status": "success",
-            "data": None,
-            "error": None
-        }
-
-        try:
-
-            ocr_result = await ReferralPipeline.process_content(
-                filename,
-                content
-            )
-
-            extracted_data = LLMService.analyze_document(
-                ocr_result
-            )
-
-            validation_result = ValidationService.validate(
-                extracted_data
-            )
-
-            extracted_data["validation"] = validation_result
-
-            file_result["data"] = {
-                "raw_text": ocr_result["raw_text"],
-                "markdown": ocr_result["markdown"],
-                "extracted_data": extracted_data
-            }
-
-        except Exception as e:
-
-            file_result["status"] = "error"
-            file_result["error"] = str(e)
-
-        return file_result
-
-    @staticmethod
-    async def process_content(
-        filename: str,
-        content: bytes
-    ):
-
-        from PIL import Image
-
-        items = FileHandler.process_extracted_content(
-            filename,
-            content
         )
 
-        all_blocks = []
-
-        page_number = 1
-
-        for item in items:
-
-            if isinstance(item, tuple) and item[0] == "text":
-
-                all_blocks.append({
-                    "id": len(all_blocks) + 1,
-                    "page": page_number,
-                    "line": 1,
-                    "text": item[1],
-                    "bbox": None,
-                    "confidence": 1.0
-                })
-
-            elif isinstance(item, Image.Image):
-
-                blocks = OCRService.process_image(
-                    item,
-                    page_number
-                )
-
-                all_blocks.extend(blocks)
-
-            page_number += 1
-
-        raw_text = OCRService.build_raw_text(
-            all_blocks
+    def to_api_data(self, result: DocumentAnalysisResult) -> ApiReferralData:
+        extracted = result.extracted_data
+        is_referral_document = result.document_state in {
+            DocumentState.VALID_REFERRAL,
+            DocumentState.INCOMPLETE_REFERRAL,
+            DocumentState.SELF_REFERRAL,
+            DocumentState.LOW_CONFIDENCE_REFERRAL,
+        }
+        confidence_scores = {
+            key: self._to_percent(value) for key, value in extracted.confidence_scores.items()
+        }
+        confidence_scores.update(
+            {
+                "overall": self._to_percent(result.confidence.final_confidence_score),
+                "ocr": self._to_percent(result.ocr.average_confidence),
+                "rule": self._to_percent(result.classification.evidence.rule_score),
+                "llm": self._to_percent(result.classification.evidence.llm_score),
+                "classification": self._to_percent(result.classification.confidence),
+                "validation": self._to_percent(result.validation.validation_confidence),
+                "classifier_agreement": self._to_percent(result.classification.evidence.agreement_score),
+                "completeness": self._to_percent(result.validation.completeness_score),
+            }
         )
 
-        return {
-            "raw_text": raw_text,
-            "ocr_blocks": all_blocks
-        }
+        return ApiReferralData(
+            is_referral_document=is_referral_document,
+            document_type=result.document_type,
+            document_state=result.document_state.value,
+            document_category=result.document_category,
+            referral_type=result.referral_type,
+            patient_information=extracted.patient_information,
+            provider_information=extracted.provider_information,
+            insurance_information=extracted.insurance_information,
+            clinical_information=extracted.clinical_information,
+            validation=result.validation,
+            confidence_scores=confidence_scores,
+            classification={
+                "document_state": result.document_state.value,
+                "document_type": result.document_type,
+                "document_category": result.document_category,
+                "referral_type": result.referral_type,
+                "rule_score": self._to_percent(result.classification.evidence.rule_score),
+                "llm_score": self._to_percent(result.classification.evidence.llm_score),
+                "final_classification_score": self._to_percent(result.classification.confidence),
+                "passed_rule_threshold": result.classification.evidence.passed_rule_threshold,
+                "passed_llm_threshold": result.classification.evidence.passed_llm_threshold,
+                "classifier_agreement": self._to_percent(result.classification.evidence.agreement_score),
+                "agreement_within_threshold": result.classification.evidence.agreement_within_threshold,
+                "reason": result.classification.evidence.explanation,
+                "positive_signals": result.classification.evidence.positive_signals,
+                "negative_signals": result.classification.evidence.negative_signals,
+            },
+            ocr={
+                "total_pages": result.total_pages,
+                "average_confidence": self._to_percent(result.ocr.average_confidence),
+                "poor_quality": result.ocr.quality.poor_quality,
+                "blank_document": result.ocr.blank_document,
+            },
+            review={
+                "needs_human_review": result.review.needs_human_review,
+                "priority": result.review.priority.value,
+                "queue": result.review.queue,
+                "reasons": result.review.reasons,
+            },
+            metadata={
+                "file": result.file.model_dump(),
+                "timings": result.timings.model_dump(),
+            },
+        )
+
+    def _resolve_final_state(
+        self,
+        classification: ClassificationResult,
+        extracted: ExtractedReferralData,
+        validation: ValidationInformation,
+        confidence,
+        ocr: OCRResult,
+    ) -> DocumentState:
+        if ocr.blank_document:
+            return DocumentState.BLANK_DOCUMENT
+        if ocr.corrupted_document:
+            return DocumentState.CORRUPTED_DOCUMENT
+        if classification.document_state in {
+            DocumentState.NON_MEDICAL_DOCUMENT,
+            DocumentState.NON_REFERRAL_MEDICAL,
+        }:
+            return classification.document_state
+        if not validation.is_complete_referral:
+            return DocumentState.INCOMPLETE_REFERRAL
+        if not classification.evidence.passed_rule_threshold:
+            return DocumentState.LOW_CONFIDENCE_REFERRAL
+        if classification.llm_available and not classification.evidence.passed_llm_threshold:
+            return DocumentState.LOW_CONFIDENCE_REFERRAL
+        if classification.llm_available and not classification.evidence.agreement_within_threshold:
+            return DocumentState.LOW_CONFIDENCE_REFERRAL
+        if ocr.quality.poor_quality:
+            return DocumentState.LOW_CONFIDENCE_REFERRAL
+        if classification.referral_type == ReferralType.SELF_REFERRAL:
+            return DocumentState.SELF_REFERRAL
+        if confidence.final_confidence_score < settings.LOW_CONFIDENCE_THRESHOLD:
+            return DocumentState.LOW_CONFIDENCE_REFERRAL
+        return DocumentState.VALID_REFERRAL
+
+    def _to_percent(self, value: float) -> float:
+        return round(max(0.0, min(value, 1.0)) * 100, 2)
