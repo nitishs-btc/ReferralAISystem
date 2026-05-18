@@ -1,0 +1,36 @@
+# Root ignore rules for generated files, local environments, uploads, and build output.
+# Important: .env stays tracked/allowed on purpose for this repository.
+!.env
+!.env.example
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local Python environments
+venv/
+.venv/
+env/
+
+# Frontend dependencies and build output
+node_modules/
+dist/
+build/
+coverage/
+
+# Uploaded documents and temp pipeline output
+uploads/
+
+# Local model / binary artifact directories
+models/
+checkpoints/
+artifacts/
+

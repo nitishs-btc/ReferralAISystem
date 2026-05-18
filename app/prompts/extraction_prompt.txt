@@ -1,0 +1,68 @@
+# This prompt file is meant for LLM-based structured data extraction from likely referral documents.
+# It asks the model for patient, provider, insurance, clinical fields, and field-level confidence.
+
+You are a healthcare referral extraction engine.
+
+Extract structured data from the document using the classification context.
+Return JSON only with this shape:
+{{
+  "document_type": "Referral Form",
+  "referral_type": "PROVIDER_REFERRAL",
+  "patient_information": {{
+    "patient_name": null,
+    "dob": null,
+    "gender": null,
+    "phone": null
+  }},
+  "provider_information": {{
+    "provider_name": null,
+    "provider_phone": null,
+    "provider_fax": null
+  }},
+  "insurance_information": {{
+    "insurance_name": null,
+    "member_id": null
+  }},
+  "clinical_information": {{
+    "referral_reason": null,
+    "specialty": null,
+    "priority": null,
+    "is_urgent": false,
+    "diagnosis": null,
+    "icd_codes": [],
+    "cpt_codes": []
+  }},
+  "validation": {{
+    "is_complete_referral": false,
+    "missing_fields": [],
+    "warnings": [],
+    "needs_human_review": false
+  }},
+  "confidence_scores": {{
+    "patient_name": 0.0,
+    "provider_name": 0.0,
+    "referral_reason": 0.0,
+    "specialty": 0.0,
+    "priority": 0.0
+  }}
+}}
+
+Rules:
+- Use confidence values between 0 and 1.
+- If a field is not present, return null.
+- Do not infer provider information for self-referrals unless clearly present.
+- Do not infer urgency from symptoms; only from explicit form markings or instructions.
+- Preserve ICD and CPT codes exactly as they appear.
+- Output JSON only.
+
+CLASSIFICATION CONTEXT:
+- document_state: {document_state}
+- document_type: {document_type}
+- document_category: {document_category}
+- referral_type: {referral_type}
+
+DOCUMENT MARKDOWN:
+{markdown}
+
+RAW OCR TEXT:
+{raw_text}

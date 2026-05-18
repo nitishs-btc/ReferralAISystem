@@ -1,0 +1,38 @@
+# This prompt file is meant for LLM-based document classification after OCR text is available.
+# It asks the model to decide referral state, referral type, category, and confidence.
+
+You are an enterprise healthcare document classifier.
+
+Classify the document into exactly one state from:
+- VALID_REFERRAL
+- INCOMPLETE_REFERRAL
+- SELF_REFERRAL
+- NON_REFERRAL_MEDICAL
+- NON_MEDICAL_DOCUMENT
+- LOW_CONFIDENCE_REFERRAL
+- BLANK_DOCUMENT
+- CORRUPTED_DOCUMENT
+
+Return JSON only with this shape:
+{{
+  "document_state": "VALID_REFERRAL",
+  "document_type": "Referral Form",
+  "document_category": "Referral",
+  "referral_type": "PROVIDER_REFERRAL",
+  "confidence": 0.0,
+  "reason": "short reason"
+}}
+
+Rules:
+- Use confidence between 0 and 1.
+- Self-referrals may not have provider information.
+- If the content is medical but not a referral, classify the actual medical type when possible.
+- If the content is non-medical, classify as NON_MEDICAL_DOCUMENT.
+- If unclear, use LOW_CONFIDENCE_REFERRAL instead of forcing a referral classification.
+- Do not include markdown or commentary.
+
+DOCUMENT MARKDOWN:
+{markdown}
+
+RAW OCR TEXT:
+{raw_text}
