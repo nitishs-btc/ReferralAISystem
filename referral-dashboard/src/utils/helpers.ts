@@ -1,3 +1,5 @@
+// UI helper functions for confidence styling, categorization, and API response normalization.
+
 import type { Category, ConfidenceLevel, Document, ApiDocument, ReferralData } from '../types';
 
 export const getConfidenceLevel = (confidence: number): ConfidenceLevel => {
@@ -45,7 +47,7 @@ export const classifyDocument = (data: ReferralData | null, status: string): { c
     return { category: 'Not Referral', confidence: 0, issues: ['Processing failed'] };
   }
 
-  // Check if it's a referral document
+  // Non-referrals are surfaced immediately so operators can ignore them or route them elsewhere.
   if (!data.is_referral_document) {
     return { 
       category: 'Not Referral', 
@@ -77,7 +79,7 @@ export const classifyDocument = (data: ReferralData | null, status: string): { c
     }
   }
 
-  // Determine category based on validation
+  // The dashboard keeps a simple 3-state view even though the backend has more detailed document states.
   let category: Category;
   
   if (data.validation?.is_complete_referral && issues.length === 0) {
@@ -100,6 +102,7 @@ export const classifyDocument = (data: ReferralData | null, status: string): { c
 };
 
 export const transformApiResponse = (results: ApiDocument[]): Document[] => {
+  // Convert backend batch results into the view model consumed by table/cards/detail components.
   return results.map((result, index) => {
     const { category, confidence, issues } = classifyDocument(result.data, result.status);
 

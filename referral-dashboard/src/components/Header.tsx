@@ -1,3 +1,5 @@
+// Dashboard header with search input and live processing status indicator.
+
 import { Search, Activity } from 'lucide-react';
 
 interface HeaderProps {

@@ -1,7 +1,9 @@
+"""Reusable Ollama client with retries, timeout controls, and a simple circuit breaker."""
+
 import asyncio
 import json
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Any
 
 import requests
@@ -28,6 +30,7 @@ class LLMService:
     ) -> dict[str, Any]:
         async with self.semaphore:
             if self._is_temporarily_unavailable():
+                # Skip repeated connection attempts for a short cooldown once the LLM is known to be down.
                 self.logger.warning(
                     "llm_skipped_circuit_open",
                     stage="llm",
@@ -59,6 +62,7 @@ class LLMService:
                         error=str(exc),
                     )
                     if self._should_fail_fast(exc):
+                        # Connection-level failures are unlikely to recover on immediate retry.
                         self._trip_circuit(exc)
                         break
                     if attempt <= settings.OLLAMA_MAX_RETRIES:
@@ -71,6 +75,7 @@ class LLMService:
         return base_prompt.format(**variables)
 
     def _load_prompt(self, prompt_file: str) -> str:
+        # Prompt files are cached in memory because they are static for the process lifetime.
         if prompt_file not in self._prompt_cache:
             path = Path("app/prompts") / prompt_file
             self._prompt_cache[prompt_file] = path.read_text(encoding="utf-8")
@@ -98,6 +103,7 @@ class LLMService:
         return response.json()
 
     def _parse_json_response(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # Some local model responses wrap JSON in extra text; trim to the outer braces when possible.
         raw_response = payload.get("response", "{}")
         try:
             return json.loads(raw_response)
@@ -118,6 +124,7 @@ class LLMService:
         )
 
     def _trip_circuit(self, exc: Exception) -> None:
+        # The circuit breaker protects request latency when Ollama is unreachable.
         self._last_unavailable_reason = str(exc)
         self._unavailable_until = (
             time.monotonic() + settings.OLLAMA_UNAVAILABLE_COOLDOWN_SECONDS

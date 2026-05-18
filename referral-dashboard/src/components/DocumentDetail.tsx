@@ -1,3 +1,5 @@
+// Detailed modal view for the extracted referral payload returned by the backend API.
+
 import { X, User, Stethoscope, FileText, AlertTriangle, CheckCircle, Shield, Activity } from 'lucide-react';
 import type { Document } from '../types';
 import { getConfidenceColor, getConfidenceBgColor, getCategoryIcon } from '../utils/helpers';
@@ -73,6 +75,7 @@ export default function DocumentDetail({ document, onClose }: DocumentDetailProp
             {confidence && Object.keys(confidence).length > 1 && (
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {Object.entries(confidence).map(([key, value]) => {
+                  // "overall" already has its own progress bar, so the grid shows the component scores only.
                   if (key === 'overall' || typeof value !== 'number') return null;
                   return (
                     <div key={key} className="bg-gray-50 p-2 rounded-lg text-center">
@@ -215,6 +218,7 @@ export default function DocumentDetail({ document, onClose }: DocumentDetailProp
 }
 
 function InfoRow({ label, value }: { label: string; value: string | undefined }) {
+  // Simple shared presenter so empty values render consistently across all detail sections.
   return (
     <div className="flex">
       <span className="text-gray-500 w-24 flex-shrink-0">{label}:</span>

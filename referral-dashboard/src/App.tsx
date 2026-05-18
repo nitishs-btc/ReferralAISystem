@@ -1,3 +1,5 @@
+// Top-level dashboard container that handles uploads, filtering, and document detail state.
+
 import { useState } from 'react';
 import type { Category, Document } from './types';
 import { uploadFiles } from './api/referralApi';
@@ -22,6 +24,7 @@ function App() {
 
     try {
       const response = await uploadFiles(files, (progress) => {
+        // Cap upload progress at 50% so the UI still has room to show backend processing progress.
         setUploadProgress(Math.min(progress, 50));
       });
 
@@ -32,7 +35,7 @@ function App() {
       setUploadProgress(100);
       setDocuments((prev) => [...prev, ...newDocuments]);
 
-      // Auto-select category with most documents
+      // Auto-focus the busiest category so the operator sees the most relevant results first.
       const referralCount = newDocuments.filter(d => d.category === 'Referral').length;
       const incompleteCount = newDocuments.filter(d => d.category === 'Incomplete').length;
       const notReferralCount = newDocuments.filter(d => d.category === 'Not Referral').length;

@@ -1,3 +1,5 @@
+"""Pydantic models shared across OCR, classification, extraction, validation, and API responses."""
+
 from enum import Enum
 from typing import Any
 
@@ -139,6 +141,7 @@ class ExtractedReferralData(BaseModel):
 
 
 class ApiReferralData(BaseModel):
+    # This schema mirrors the legacy dashboard payload while carrying extra sections for new features.
     is_referral_document: bool = False
     document_type: str = "Unknown"
     document_state: str = DocumentState.LOW_CONFIDENCE_REFERRAL.value

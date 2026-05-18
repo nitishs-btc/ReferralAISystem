@@ -1,3 +1,5 @@
+// Vite environment type declarations for frontend runtime configuration.
+
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {

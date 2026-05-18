@@ -1,3 +1,5 @@
+// Tabular list for the currently selected document category in the dashboard.
+
 import { Eye, FileText, AlertCircle } from 'lucide-react';
 import type { Category, Document } from '../types';
 import { getConfidenceColor, getConfidenceBgColor, getPatientName, getProviderName } from '../utils/helpers';
@@ -13,6 +15,7 @@ export default function DocumentList({ documents, category, onViewDocument, sear
   const filteredDocs = documents
     .filter((d) => d.category === category)
     .filter((d) => {
+      // Search works across file name, patient name, and provider name for quick triage.
       if (searchQuery === '') return true;
       const query = searchQuery.toLowerCase();
       const patientName = getPatientName(d.data).toLowerCase();

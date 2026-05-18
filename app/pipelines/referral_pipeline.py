@@ -1,3 +1,5 @@
+"""Primary workflow orchestrator for intake, OCR, classification, extraction, and review."""
+
 from time import perf_counter
 
 from fastapi import UploadFile
@@ -33,6 +35,7 @@ class ReferralPipeline:
     _instance: "ReferralPipeline | None" = None
 
     def __init__(self) -> None:
+        # Build service dependencies once so semaphores, prompt caches, and clients are reused.
         self.logger = LoggingService()
         self.file_handler = FileHandlerService()
         self.llm_service = LLMService()
@@ -46,6 +49,7 @@ class ReferralPipeline:
 
     @classmethod
     def instance(cls) -> "ReferralPipeline":
+        # The pipeline is effectively stateless per request, so a singleton keeps setup overhead low.
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
@@ -57,6 +61,7 @@ class ReferralPipeline:
         try:
             if len(documents) != 1:
                 raise ValueError("Single document endpoint received an archive or multiple logical documents.")
+            # The single-file endpoint returns only the dashboard-compatible data payload.
             result = await pipeline.process_document(documents[0])
             return pipeline.to_api_data(result).model_dump()
         finally:
@@ -73,6 +78,7 @@ class ReferralPipeline:
         return pipeline.batch_orchestrator.process_archive(file)
 
     async def process_document(self, document: NormalizedDocument) -> DocumentAnalysisResult:
+        # Track stage timings so slow OCR/LLM steps are visible in logs and API metadata.
         start_total = perf_counter()
         timings = ProcessingTimings()
         self.logger.info("document_processing_started", stage="pipeline", document_id=document.document_id, filename=document.filename)
@@ -90,6 +96,7 @@ class ReferralPipeline:
         try:
             ocr = await self.ocr_service.extract(document)
         except OCRProcessingError as exc:
+            # OCR failure should degrade this document only; the batch must continue.
             ocr = OCRResult(corrupted_document=True, total_pages=0, raw_text="", markdown="")
             classification = ClassificationResult(
                 document_state=DocumentState.CORRUPTED_DOCUMENT,
@@ -155,6 +162,7 @@ class ReferralPipeline:
 
         extraction_start = perf_counter()
         if classification.is_referral_candidate:
+            # We only spend extraction cost on likely referral candidates.
             extracted = await self.extraction_service.extract(
                 document_id=document.document_id,
                 classification=classification,
@@ -189,6 +197,7 @@ class ReferralPipeline:
 
         document_state = self._resolve_final_state(classification, extracted, validation, confidence, ocr)
         classification.document_state = document_state
+        # Keep the extracted document label aligned with the final state shown in the UI.
         if document_state == DocumentState.INCOMPLETE_REFERRAL:
             extracted.document_type = "Incomplete Referral"
         elif document_state == DocumentState.SELF_REFERRAL:
@@ -237,6 +246,7 @@ class ReferralPipeline:
         )
 
     def to_api_data(self, result: DocumentAnalysisResult) -> ApiReferralData:
+        # Preserve the original frontend contract while exposing richer metadata for future UI work.
         extracted = result.extracted_data
         is_referral_document = result.document_state in {
             DocumentState.VALID_REFERRAL,
@@ -314,6 +324,8 @@ class ReferralPipeline:
         confidence,
         ocr: OCRResult,
     ) -> DocumentState:
+        # Final state is intentionally stricter than early classification because it includes extraction
+        # quality, validation completeness, OCR quality, and rule/LLM agreement.
         if ocr.blank_document:
             return DocumentState.BLANK_DOCUMENT
         if ocr.corrupted_document:
@@ -340,4 +352,5 @@ class ReferralPipeline:
         return DocumentState.VALID_REFERRAL
 
     def _to_percent(self, value: float) -> float:
+        # The frontend expects 0-100 percentages, while the backend computes 0-1 normalized scores.
         return round(max(0.0, min(value, 1.0)) * 100, 2)

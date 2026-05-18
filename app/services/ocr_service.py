@@ -1,3 +1,5 @@
+"""OCR adapter that runs Docling behind async-friendly semaphores and timeouts."""
+
 import asyncio
 from pathlib import Path
 
@@ -19,6 +21,7 @@ class OCRService:
     async def extract(self, document: NormalizedDocument) -> OCRResult:
         async with self.semaphore:
             try:
+                # OCR is blocking and CPU-heavy, so it is pushed onto a worker thread.
                 payload = await asyncio.wait_for(
                     asyncio.to_thread(self._extract_sync, document.file_path),
                     timeout=settings.OCR_TIMEOUT_SECONDS,
@@ -37,6 +40,8 @@ class OCRService:
         markdown = document.export_to_markdown() or ""
         total_pages = len(document.pages or [])
 
+        # Docling does not expose a single native confidence here, so we derive a quality heuristic from
+        # text density and blank output to support downstream review routing.
         text_density = min(len(raw_text.strip()) / max(total_pages, 1) / 1500.0, 1.0) if raw_text else 0.0
         blank_document = not raw_text.strip()
         average_confidence = 0.15 if blank_document else min(0.55 + (text_density * 0.45), 0.98)

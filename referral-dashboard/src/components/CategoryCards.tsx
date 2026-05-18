@@ -1,3 +1,5 @@
+// Summary cards that group processed documents into referral, incomplete, and non-referral buckets.
+
 import { CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { Category, Document } from '../types';
 
@@ -45,6 +47,7 @@ const categories: CategoryConfig[] = [
 
 export default function CategoryCards({ documents, selectedCategory, onSelectCategory }: CategoryCardsProps) {
   const getCategoryStats = (category: Category) => {
+    // Confidence averages give a quick signal of how trustworthy each bucket is overall.
     const categoryDocs = documents.filter((d) => d.category === category);
     const count = categoryDocs.length;
     const avgConfidence = count > 0

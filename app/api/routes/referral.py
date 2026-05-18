@@ -1,3 +1,5 @@
+"""FastAPI routes that expose single-file and batch referral analysis endpoints."""
+
 from fastapi import APIRouter, File, UploadFile
 
 from app.pipelines.referral_pipeline import ReferralPipeline
@@ -14,6 +16,7 @@ async def analyze_referral(file: UploadFile = File(...)):
     """
 
     if FileHandlerService.is_archive(file.filename or ""):
+        # Archives reuse the batch response contract because one upload expands into many documents.
         result = await ReferralPipeline.process_archive(file)
         return result.model_dump()
 

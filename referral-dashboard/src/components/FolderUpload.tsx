@@ -1,3 +1,5 @@
+// Upload surface that supports drag-drop, folder selection, and file selection for referral batches.
+
 import { useRef, useState } from 'react';
 import { Upload, FolderOpen, Loader2 } from 'lucide-react';
 
@@ -49,6 +51,7 @@ export default function FolderUpload({ onUpload, isUploading, progress }: Folder
       <input
         ref={folderInputRef}
         type="file"
+        // Folder upload is Chrome/WebKit-specific but very convenient for medical packet drops.
         // @ts-expect-error webkitdirectory is not in types
         webkitdirectory=""
         multiple

@@ -1,3 +1,5 @@
+// Shared frontend types for the dashboard UI and the backend API payload it consumes.
+
 export type Category = 'Referral' | 'Incomplete' | 'Not Referral';
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
@@ -57,6 +59,7 @@ export interface ConfidenceScores {
 }
 
 export interface ReferralData {
+  // This mirrors the backend's dashboard-compatible response shape.
   is_referral_document: boolean;
   document_type: string;
   patient_information: PatientInformation;

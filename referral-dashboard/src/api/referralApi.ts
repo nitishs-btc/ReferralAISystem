@@ -1,3 +1,5 @@
+// Thin API client used by the dashboard for single-file and batch referral uploads.
+
 import axios from 'axios';
 import { ApiResponse } from '../types';
 
@@ -11,6 +13,7 @@ export const uploadFiles = async (
   files: FileList,
   onProgress?: (progress: number) => void
 ): Promise<ApiResponse> => {
+  // The backend expects repeated "files" keys for batch uploads.
   const formData = new FormData();
   
   Array.from(files).forEach((file) => {
@@ -33,6 +36,7 @@ export const uploadFiles = async (
 };
 
 export const uploadSingleFile = async (file: File): Promise<ApiResponse> => {
+  // Kept for compatibility even though the current UI uses the batch path.
   const formData = new FormData();
   formData.append('file', file);
 

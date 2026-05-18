@@ -1,3 +1,5 @@
+"""Referral completeness checks with different required-field rules for provider and self referrals."""
+
 from app.schemas.referral import (
     ClassificationResult,
     DocumentState,
@@ -32,6 +34,7 @@ class ValidationService:
             )
 
         required_fields = ["patient_name", "referral_reason"]
+        # Self-referrals deliberately do not require a referring provider to be present.
         profile = "self_referral" if classification.referral_type == ReferralType.SELF_REFERRAL else "provider_referral"
         if profile == "provider_referral":
             required_fields.append("provider_name")

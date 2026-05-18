@@ -1,3 +1,5 @@
+"""Central application settings loaded from environment variables and cached once per process."""
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -6,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # App/runtime settings.
     APP_NAME: str = "Referral AI System"
     APP_ENV: str = "development"
     LOG_LEVEL: str = "INFO"
@@ -16,6 +19,7 @@ class Settings(BaseSettings):
         ]
     )
 
+    # LLM connectivity and retry controls.
     OLLAMA_URL: str = "http://localhost:11434/api/generate"
     OLLAMA_MODEL: str = "llama3.1:8b"
     OLLAMA_TIMEOUT_SECONDS: int = 180
@@ -24,17 +28,20 @@ class Settings(BaseSettings):
     OLLAMA_CONTEXT_WINDOW: int = 8192
     OLLAMA_UNAVAILABLE_COOLDOWN_SECONDS: int = 60
 
+    # Workload throttling to protect CPU/RAM during batch processing.
     OCR_TIMEOUT_SECONDS: int = 240
     PIPELINE_TIMEOUT_SECONDS: int = 600
     OCR_CONCURRENCY: int = 2
     LLM_CONCURRENCY: int = 2
     BATCH_CONCURRENCY: int = 4
 
+    # File handling safeguards for large uploads and archives.
     MAX_ARCHIVE_FILES: int = 100
     MAX_ARCHIVE_MEMBER_SIZE_MB: int = 50
     SPOOL_CHUNK_SIZE_BYTES: int = 1024 * 1024
     TEMP_DIRECTORY: str = "uploads/tmp"
 
+    # Decision thresholds used by classification, validation, and review routing.
     REVIEW_CONFIDENCE_THRESHOLD: float = 0.72
     LOW_CONFIDENCE_THRESHOLD: float = 0.60
     CLASSIFIER_DISAGREEMENT_THRESHOLD: float = 0.35
@@ -43,6 +50,7 @@ class Settings(BaseSettings):
     LLM_REFERRAL_THRESHOLD: float = 0.55
     AGREEMENT_MIN_SCORE: float = 0.65
 
+    # Weighted confidence fusion inputs.
     OCR_WEIGHT: float = 0.20
     RULE_WEIGHT: float = 0.20
     LLM_WEIGHT: float = 0.25
@@ -58,11 +66,13 @@ class Settings(BaseSettings):
 
     @property
     def temp_directory_path(self) -> Path:
+        # Resolve lazily so callers always get a Path object instead of a raw string.
         return Path(self.TEMP_DIRECTORY)
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    # Cache settings so repeated imports do not reload the environment or rebuild the model.
     return Settings()
 
 

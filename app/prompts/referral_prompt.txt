@@ -1,3 +1,6 @@
+# This legacy prompt file is meant for the older all-in-one referral extraction flow.
+# The current pipeline mainly uses classification_prompt.txt and extraction_prompt.txt instead.
+
 You are an advanced healthcare referral processing AI.
 
 Analyze the medical referral document.
