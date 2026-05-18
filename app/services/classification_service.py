@@ -58,7 +58,12 @@ class ClassificationService:
     async def classify(self, *, document_id: str, ocr: OCRResult) -> ClassificationResult:
         # Rules always run, even when the LLM is down, so the pipeline can still return a usable result.
         rule_result = self._rule_classification(ocr)
-        llm_payload, llm_available = await self._classify_with_llm(document_id=document_id, ocr=ocr)
+        should_call_llm, llm_skip_reason = self._should_call_llm(rule_result=rule_result, ocr=ocr)
+        llm_payload, llm_available = await self._classify_with_llm(
+            document_id=document_id,
+            ocr=ocr,
+            should_call_llm=should_call_llm,
+        )
 
         llm_score = self._safe_float(llm_payload.get("confidence", 0.0)) if llm_payload else 0.0
         rule_score = rule_result["rule_score"]
@@ -92,6 +97,8 @@ class ClassificationService:
                 llm_score=round(llm_score, 4),
                 layout_score=rule_result["layout_score"],
                 ocr_score=ocr.average_confidence,
+                llm_invoked=should_call_llm and llm_available,
+                llm_skip_reason=None if should_call_llm else llm_skip_reason,
                 passed_rule_threshold=passed_rule_threshold,
                 passed_llm_threshold=passed_llm_threshold,
                 agreement_score=agreement_score,
@@ -114,6 +121,7 @@ class ClassificationService:
                 "positive_signals": [],
                 "negative_signals": ["corrupted_document"],
                 "document_type": "Corrupted Document",
+                "referral_intent_score": 0.0,
             }
         if ocr.blank_document or not text.strip():
             return {
@@ -124,6 +132,7 @@ class ClassificationService:
                 "positive_signals": [],
                 "negative_signals": ["blank_document"],
                 "document_type": "Blank Document",
+                "referral_intent_score": 0.0,
             }
 
         referral_score, referral_hits = self._score_keywords(text, self.POSITIVE_REFERRAL_KEYWORDS)
@@ -147,6 +156,7 @@ class ClassificationService:
                 "positive_signals": negative_hits,
                 "negative_signals": negative_hits,
                 "document_type": self._infer_non_medical_type(text),
+                "referral_intent_score": round(referral_rule_score, 4),
             }
 
         if self_referral_score >= 0.35:
@@ -158,6 +168,7 @@ class ClassificationService:
                 "positive_signals": referral_hits + self_referral_hits,
                 "negative_signals": negative_hits,
                 "document_type": "Self Referral Form",
+                "referral_intent_score": round(referral_rule_score, 4),
             }
 
         if referral_rule_score >= 0.42:
@@ -169,6 +180,7 @@ class ClassificationService:
                 "positive_signals": referral_hits + self_referral_hits + supporting_hits,
                 "negative_signals": negative_hits,
                 "document_type": "Referral Form",
+                "referral_intent_score": round(referral_rule_score, 4),
             }
 
         if supporting_score >= 0.20:
@@ -180,6 +192,7 @@ class ClassificationService:
                 "positive_signals": supporting_hits,
                 "negative_signals": negative_hits,
                 "document_type": self._infer_medical_supporting_type(text),
+                "referral_intent_score": round(referral_rule_score, 4),
             }
 
         return {
@@ -190,10 +203,17 @@ class ClassificationService:
             "positive_signals": referral_hits + supporting_hits,
             "negative_signals": negative_hits,
             "document_type": "Uncertain Medical Document",
+            "referral_intent_score": round(referral_rule_score, 4),
         }
 
-    async def _classify_with_llm(self, *, document_id: str, ocr: OCRResult) -> tuple[dict[str, Any], bool]:
-        if not ocr.raw_text.strip():
+    async def _classify_with_llm(
+        self,
+        *,
+        document_id: str,
+        ocr: OCRResult,
+        should_call_llm: bool,
+    ) -> tuple[dict[str, Any], bool]:
+        if not should_call_llm or not ocr.raw_text.strip():
             return {}, False
 
         try:
@@ -211,6 +231,37 @@ class ClassificationService:
             return {}, False
         except Exception:
             return {}, False
+
+    def _should_call_llm(self, *, rule_result: dict[str, Any], ocr: OCRResult) -> tuple[bool, str | None]:
+        if ocr.corrupted_document:
+            return False, "Skipped because the document appears corrupted."
+        if ocr.blank_document or not ocr.raw_text.strip():
+            return False, "Skipped because OCR returned no usable text."
+
+        alphabetic_character_count = self._count_alphabetic_characters(ocr.raw_text)
+        if alphabetic_character_count < settings.MIN_TEXT_ALPHA_CHARS_FOR_LLM:
+            return False, (
+                f"Skipped because OCR returned only {alphabetic_character_count} alphabetic characters; "
+                f"minimum required is {settings.MIN_TEXT_ALPHA_CHARS_FOR_LLM}."
+            )
+
+        if settings.USE_RULE_GATE_FOR_LLM:
+            if rule_result["document_state"] in {
+                DocumentState.NON_MEDICAL_DOCUMENT,
+                DocumentState.NON_REFERRAL_MEDICAL,
+            }:
+                return False, "Skipped because rules identified a non-referral document and USE_RULE_GATE_FOR_LLM is true."
+
+            if (
+                rule_result["document_state"] == DocumentState.LOW_CONFIDENCE_REFERRAL
+                and rule_result.get("referral_intent_score", 0.0) < settings.RULE_LLM_GATE_THRESHOLD
+            ):
+                return False, (
+                    f"Skipped because referral intent score {rule_result.get('referral_intent_score', 0.0):.2f} "
+                    f"is below RULE_LLM_GATE_THRESHOLD {settings.RULE_LLM_GATE_THRESHOLD:.2f}."
+                )
+
+        return True, None
 
     def _resolve_state(self, rule_result: dict[str, Any], llm_payload: dict[str, Any], confidence: float) -> DocumentState:
         if rule_result["document_state"] in {DocumentState.BLANK_DOCUMENT, DocumentState.CORRUPTED_DOCUMENT}:
@@ -301,6 +352,9 @@ class ClassificationService:
             return min(max(float(value), 0.0), 1.0)
         except (TypeError, ValueError):
             return 0.0
+
+    def _count_alphabetic_characters(self, text: str) -> int:
+        return sum(1 for character in text if character.isalpha())
 
     def _infer_medical_supporting_type(self, text: str) -> str:
         if "insurance card" in text or "member id" in text:

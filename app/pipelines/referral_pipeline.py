@@ -290,6 +290,8 @@ class ReferralPipeline:
                 "rule_score": self._to_percent(result.classification.evidence.rule_score),
                 "llm_score": self._to_percent(result.classification.evidence.llm_score),
                 "final_classification_score": self._to_percent(result.classification.confidence),
+                "llm_invoked": result.classification.evidence.llm_invoked,
+                "llm_skip_reason": result.classification.evidence.llm_skip_reason,
                 "passed_rule_threshold": result.classification.evidence.passed_rule_threshold,
                 "passed_llm_threshold": result.classification.evidence.passed_llm_threshold,
                 "classifier_agreement": self._to_percent(result.classification.evidence.agreement_score),

@@ -2,9 +2,10 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     APP_NAME: str
     APP_ENV: str
     LOG_LEVEL: str
-    CORS_ORIGINS: list[str]
+    CORS_ORIGINS: Annotated[list[str], NoDecode]
 
     # LLM connectivity and retry controls.
     OLLAMA_URL: str
@@ -42,6 +43,9 @@ class Settings(BaseSettings):
     CLASSIFIER_DISAGREEMENT_THRESHOLD: float
     OCR_POOR_QUALITY_THRESHOLD: float
     RULE_REFERRAL_THRESHOLD: float
+    MIN_TEXT_ALPHA_CHARS_FOR_LLM: int
+    USE_RULE_GATE_FOR_LLM: bool
+    RULE_LLM_GATE_THRESHOLD: float
     LLM_REFERRAL_THRESHOLD: float
     AGREEMENT_MIN_SCORE: float
 

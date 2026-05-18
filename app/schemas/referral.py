@@ -67,6 +67,8 @@ class ClassificationEvidence(BaseModel):
     llm_score: float = 0.0
     layout_score: float = 0.0
     ocr_score: float = 0.0
+    llm_invoked: bool = False
+    llm_skip_reason: str | None = None
     passed_rule_threshold: bool = False
     passed_llm_threshold: bool = False
     agreement_score: float = 0.0
