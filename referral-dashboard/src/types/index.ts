@@ -1,6 +1,6 @@
 // Shared frontend types for the dashboard UI and the backend API payload it consumes.
 
-export type Category = 'Referral' | 'Incomplete' | 'Non Referral';
+export type Category = 'Referral' | 'Incomplete' | 'Not Referral';
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 

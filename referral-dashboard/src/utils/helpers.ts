@@ -26,7 +26,7 @@ export const getCategoryColor = (category: Category): string => {
       return 'text-green-700 bg-green-100 border-green-300';
     case 'Incomplete':
       return 'text-yellow-700 bg-yellow-100 border-yellow-300';
-    case 'Non Referral':
+    case 'Not Referral':
       return 'text-red-700 bg-red-100 border-red-300';
   }
 };
@@ -37,7 +37,7 @@ export const getCategoryIcon = (category: Category): string => {
       return '✅';
     case 'Incomplete':
       return '⚠️';
-    case 'Non Referral':
+    case 'Not Referral':
       return '❌';
   }
 };
@@ -48,21 +48,21 @@ const STATE_TO_CATEGORY: Record<string, Category> = {
   INCOMPLETE_REFERRAL:     'Incomplete',
   SELF_REFERRAL:           'Incomplete',
   LOW_CONFIDENCE_REFERRAL: 'Incomplete',
-  NON_REFERRAL_MEDICAL:    'Non Referral',
-  NON_MEDICAL_DOCUMENT:    'Non Referral',
-  BLANK_DOCUMENT:          'Non Referral',
-  CORRUPTED_DOCUMENT:      'Non Referral',
+  NON_REFERRAL_MEDICAL:    'Not Referral',
+  NON_MEDICAL_DOCUMENT:    'Not Referral',
+  BLANK_DOCUMENT:          'Not Referral',
+  CORRUPTED_DOCUMENT:      'Not Referral',
 };
 
 export const classifyDocument = (data: ReferralData | null, status: string): { category: Category; confidence: number; issues: string[] } => {
   if (status === 'error' || !data) {
-    return { category: 'Non Referral', confidence: 0, issues: ['Processing failed'] };
+    return { category: 'Not Referral', confidence: 0, issues: ['Processing failed'] };
   }
 
   // Non-referrals are surfaced immediately so operators can ignore them or route them elsewhere.
   if (!data.is_referral_document) {
     return { 
-      category: 'Non Referral', 
+      category: 'Not Referral', 
       confidence: data.confidence_scores?.overall || 0, 
       issues: ['Not a referral document'] 
     };
@@ -93,12 +93,12 @@ export const classifyDocument = (data: ReferralData | null, status: string): { c
 
   // The dashboard keeps a simple 3-state view even though the backend has more detailed document states.
 const category: Category = data.document_state
-    ? (STATE_TO_CATEGORY[data.document_state] ?? 'Non Referral')
+    ? (STATE_TO_CATEGORY[data.document_state] ?? 'Not Referral')
     : data.validation?.is_complete_referral && issues.length === 0
       ? 'Referral'
       : data.is_referral_document
         ? 'Incomplete'
-        : 'Non Referral';
+        : 'Not Referral';
 
   // Override if needs human review
   if (data.validation?.needs_human_review && category === 'Referral') {

@@ -1,4 +1,5 @@
 """Referral completeness checks with different required-field rules for provider and self referrals."""
+from app.core.config import settings
 
 from app.schemas.referral import (
     ClassificationResult,
@@ -57,7 +58,14 @@ class ValidationService:
         found_required_fields_count = len(required_fields) - len(missing_fields)
         completeness = found_required_fields_count
         validation_confidence = max(completeness / max(len(required_fields), 1), 0.0)
-        needs_human_review = bool(missing_fields) or ocr.quality.poor_quality
+        is_incomplete = bool(missing_fields)
+        overall_confidence = extracted_data.confidence_scores.get("overall", 0.0)
+        needs_human_review = (
+                is_incomplete   # incomplete referral
+                or ocr.quality.poor_quality  # poor scan
+                or (not is_incomplete and overall_confidence < settings.CONSIDER_FOR_HUMAN_REVIEW) # low validation confidence
+        )
+
         return ValidationInformation(
             is_complete_referral=not missing_fields,
             missing_fields=missing_fields,

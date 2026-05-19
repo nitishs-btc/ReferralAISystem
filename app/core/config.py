@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     RULE_LLM_GATE_THRESHOLD: float
     LLM_REFERRAL_THRESHOLD: float
     AGREEMENT_MIN_SCORE: float
+    CONSIDER_FOR_HUMAN_REVIEW: float
 
     # Weighted confidence fusion inputs.
     OCR_WEIGHT: float
