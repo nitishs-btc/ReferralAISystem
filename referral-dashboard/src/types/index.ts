@@ -61,6 +61,13 @@ export interface ValidationInformation {
   needs_human_review: boolean;
 }
 
+export interface ReviewInformation {
+  needs_human_review: boolean;
+  priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+  queue?: string;
+  reasons: string[];
+}
+
 export interface ConfidenceScores {
   overall?: number;
   rule?: number;
@@ -80,14 +87,15 @@ export interface ReferralData {
   // This mirrors the backend's dashboard-compatible response shape.
   is_referral_document: boolean;
   document_type: string;
-  document_state: DocumentState;           // ← add this
-  document_category: string;        // ← add this
+  document_state: DocumentState;
+  document_category: string;
   patient_information: PatientInformation;
   provider_information: ProviderInformation;
   insurance_information: InsuranceInformation;
   clinical_information: ClinicalInformation;
   validation: ValidationInformation;
   confidence_scores: ConfidenceScores;
+  review?: ReviewInformation;
 }
 
 export interface ApiResponse {

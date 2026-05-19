@@ -17,7 +17,15 @@ export default function DocumentDetail({ document, onClose }: DocumentDetailProp
   const clinical = data?.clinical_information;
   const validation = data?.validation;
   const confidence = data?.confidence_scores;
+  const review = data?.review;
   const document_category = data?.document_category?.toUpperCase();
+  const needsHumanReview = review?.needs_human_review || validation?.needs_human_review;
+  const reviewPriorityColor =
+    review?.priority === 'HIGH'
+      ? 'bg-red-100 text-red-700 border-red-200'
+      : review?.priority === 'MEDIUM'
+        ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+        : 'bg-blue-100 text-blue-700 border-blue-200';
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -106,6 +114,52 @@ export default function DocumentDetail({ document, onClose }: DocumentDetailProp
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Review */}
+          {review && (
+            <div className={`mb-6 p-4 rounded-xl border ${needsHumanReview ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  {needsHumanReview ? (
+                    <AlertTriangle className="w-5 h-5 text-red-600" />
+                  ) : (
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                  )}
+                  <h3 className={`font-semibold ${needsHumanReview ? 'text-red-900' : 'text-green-900'}`}>
+                    Review Decision
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {review.priority && (
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${reviewPriorityColor}`}>
+                      {review.priority} Priority
+                    </span>
+                  )}
+                  {review.queue && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                      {review.queue.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className={`text-sm font-medium ${needsHumanReview ? 'text-red-800' : 'text-green-800'}`}>
+                {needsHumanReview ? 'Needs Human Review' : 'No Human Review Needed'}
+              </p>
+              {review.reasons.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-gray-700 mb-2">Reasons</p>
+                  <ul className="space-y-1">
+                    {review.reasons.map((reason, idx) => (
+                      <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 bg-current rounded-full mt-2 flex-shrink-0" />
+                        <span>{reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
@@ -204,7 +258,7 @@ export default function DocumentDetail({ document, onClose }: DocumentDetailProp
                     {document_category}
                   </span>
                 </div>
-                {(validation.needs_human_review) && (
+                {needsHumanReview && (
                   <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
                     Needs Human Review
                   </span>

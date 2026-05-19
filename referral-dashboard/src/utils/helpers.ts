@@ -91,6 +91,10 @@ export const classifyDocument = (data: ReferralData | null, status: string): { c
     }
   }
 
+  if (data.review?.reasons && data.review.reasons.length > 0) {
+    issues.push(...data.review.reasons);
+  }
+
   // The dashboard keeps a simple 3-state view even though the backend has more detailed document states.
 const category: Category = data.document_state
     ? (STATE_TO_CATEGORY[data.document_state] ?? 'Not Referral')
@@ -101,7 +105,7 @@ const category: Category = data.document_state
         : 'Not Referral';
 
   // Override if needs human review
-  if (data.validation?.needs_human_review && category === 'Referral') {
+  if ((data.review?.needs_human_review || data.validation?.needs_human_review) && category === 'Referral') {
     issues.push('Needs human review');
   }
 
