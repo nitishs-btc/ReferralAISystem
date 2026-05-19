@@ -38,12 +38,12 @@ function App() {
       // Auto-focus the busiest category so the operator sees the most relevant results first.
       const referralCount = newDocuments.filter(d => d.category === 'Referral').length;
       const incompleteCount = newDocuments.filter(d => d.category === 'Incomplete').length;
-      const notReferralCount = newDocuments.filter(d => d.category === 'Not Referral').length;
+      const notReferralCount = newDocuments.filter(d => d.category === 'Non Referral').length;
 
       if (incompleteCount > referralCount && incompleteCount > notReferralCount) {
         setSelectedCategory('Incomplete');
       } else if (notReferralCount > referralCount) {
-        setSelectedCategory('Not Referral');
+        setSelectedCategory('Non Referral');
       } else {
         setSelectedCategory('Referral');
       }

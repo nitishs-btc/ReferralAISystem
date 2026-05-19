@@ -1,6 +1,6 @@
 // UI helper functions for confidence styling, categorization, and API response normalization.
 
-import type { Category, ConfidenceLevel, Document, ApiDocument, ReferralData } from '../types';
+import type { Category, ConfidenceLevel, Document, DocumentState, ApiDocument, ReferralData } from '../types';
 
 export const getConfidenceLevel = (confidence: number): ConfidenceLevel => {
   if (confidence >= 90) return 'high';
@@ -26,7 +26,7 @@ export const getCategoryColor = (category: Category): string => {
       return 'text-green-700 bg-green-100 border-green-300';
     case 'Incomplete':
       return 'text-yellow-700 bg-yellow-100 border-yellow-300';
-    case 'Not Referral':
+    case 'Non Referral':
       return 'text-red-700 bg-red-100 border-red-300';
   }
 };
@@ -37,20 +37,32 @@ export const getCategoryIcon = (category: Category): string => {
       return '✅';
     case 'Incomplete':
       return '⚠️';
-    case 'Not Referral':
+    case 'Non Referral':
       return '❌';
   }
 };
 
+const STATE_TO_CATEGORY: Record<string, Category> = {
+  VALID_REFERRAL:          'Referral',
+  REFERRAL:                'Referral',
+  INCOMPLETE_REFERRAL:     'Incomplete',
+  SELF_REFERRAL:           'Incomplete',
+  LOW_CONFIDENCE_REFERRAL: 'Incomplete',
+  NON_REFERRAL_MEDICAL:    'Non Referral',
+  NON_MEDICAL_DOCUMENT:    'Non Referral',
+  BLANK_DOCUMENT:          'Non Referral',
+  CORRUPTED_DOCUMENT:      'Non Referral',
+};
+
 export const classifyDocument = (data: ReferralData | null, status: string): { category: Category; confidence: number; issues: string[] } => {
   if (status === 'error' || !data) {
-    return { category: 'Not Referral', confidence: 0, issues: ['Processing failed'] };
+    return { category: 'Non Referral', confidence: 0, issues: ['Processing failed'] };
   }
 
   // Non-referrals are surfaced immediately so operators can ignore them or route them elsewhere.
   if (!data.is_referral_document) {
     return { 
-      category: 'Not Referral', 
+      category: 'Non Referral', 
       confidence: data.confidence_scores?.overall || 0, 
       issues: ['Not a referral document'] 
     };
@@ -80,22 +92,17 @@ export const classifyDocument = (data: ReferralData | null, status: string): { c
   }
 
   // The dashboard keeps a simple 3-state view even though the backend has more detailed document states.
-  let category: Category;
-  
-  if (data.validation?.is_complete_referral && issues.length === 0) {
-    category = 'Referral';
-  } else if (data.is_referral_document && (data.validation?.is_complete_referral || issues.length <= 3)) {
-    category = 'Incomplete';
-  } else {
-    category = 'Not Referral';
-  }
+const category: Category = data.document_state
+    ? (STATE_TO_CATEGORY[data.document_state] ?? 'Non Referral')
+    : data.validation?.is_complete_referral && issues.length === 0
+      ? 'Referral'
+      : data.is_referral_document
+        ? 'Incomplete'
+        : 'Non Referral';
 
   // Override if needs human review
   if (data.validation?.needs_human_review && category === 'Referral') {
-    category = 'Incomplete';
-    if (!issues.includes('Needs human review')) {
-      issues.push('Needs human review');
-    }
+    issues.push('Needs human review');
   }
 
   return { category, confidence, issues: [...new Set(issues)] };

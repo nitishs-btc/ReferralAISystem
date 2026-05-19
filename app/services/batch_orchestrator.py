@@ -64,8 +64,9 @@ class BatchOrchestrator:
         successful = sum(1 for item in results if item.status == "success")
         failed = len(results) - successful
         human_review_required = sum(
-            1 for item in results if item.data and item.data.review.needs_human_review
-        )
+        1 for item in results
+        if item.data and _get_needs_review(item.data.review)
+    )
         return BatchProcessingResult(
             summary=BatchSummary(
                 total_files=len(results),
@@ -75,3 +76,11 @@ class BatchOrchestrator:
             ),
             results=results,
         )
+
+def _get_needs_review(review) -> bool:
+    """Safely read needs_human_review from either a Pydantic model or a plain dict."""
+    if review is None:
+        return False
+    if isinstance(review, dict):
+        return review.get("needs_human_review", False)
+    return getattr(review, "needs_human_review", False)

@@ -58,7 +58,6 @@ class ValidationService:
         completeness = found_required_fields_count
         validation_confidence = max(completeness / max(len(required_fields), 1), 0.0)
         needs_human_review = bool(missing_fields) or ocr.quality.poor_quality
-
         return ValidationInformation(
             is_complete_referral=not missing_fields,
             missing_fields=missing_fields,

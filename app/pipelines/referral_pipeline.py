@@ -70,12 +70,12 @@ class ReferralPipeline:
     @staticmethod
     async def process_batch(files: list[UploadFile]):
         pipeline = ReferralPipeline.instance()
-        return pipeline.batch_orchestrator.process_uploads(files)
+        return await pipeline.batch_orchestrator.process_uploads(files)
 
     @staticmethod
     async def process_archive(file: UploadFile):
         pipeline = ReferralPipeline.instance()
-        return pipeline.batch_orchestrator.process_archive(file)
+        return await pipeline.batch_orchestrator.process_archive(file)
 
     async def process_document(self, document: NormalizedDocument) -> DocumentAnalysisResult:
         # Track stage timings so slow OCR/LLM steps are visible in logs and API metadata.

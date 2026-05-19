@@ -1,8 +1,19 @@
 // Shared frontend types for the dashboard UI and the backend API payload it consumes.
 
-export type Category = 'Referral' | 'Incomplete' | 'Not Referral';
+export type Category = 'Referral' | 'Incomplete' | 'Non Referral';
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
+
+export type DocumentState =
+  | 'VALID_REFERRAL'
+  | 'REFERRAL'
+  | 'INCOMPLETE_REFERRAL'
+  | 'SELF_REFERRAL'
+  | 'LOW_CONFIDENCE_REFERRAL'
+  | 'NON_REFERRAL_MEDICAL'
+  | 'NON_MEDICAL_DOCUMENT'
+  | 'BLANK_DOCUMENT'
+  | 'CORRUPTED_DOCUMENT';
 
 export interface Document {
   id: string;
@@ -52,6 +63,13 @@ export interface ValidationInformation {
 
 export interface ConfidenceScores {
   overall?: number;
+  rule?: number;
+  llm?: number;
+  classification?: number;
+  ocr?: number;
+  validation?: number;
+  completeness?: number;
+  classifier_agreement?: number;
   patient_info?: number;
   provider_info?: number;
   clinical_info?: number;
@@ -62,6 +80,8 @@ export interface ReferralData {
   // This mirrors the backend's dashboard-compatible response shape.
   is_referral_document: boolean;
   document_type: string;
+  document_state: DocumentState;           // ← add this
+  document_category: string;        // ← add this
   patient_information: PatientInformation;
   provider_information: ProviderInformation;
   insurance_information: InsuranceInformation;
