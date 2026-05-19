@@ -17,6 +17,7 @@ export default function DocumentDetail({ document, onClose }: DocumentDetailProp
   const clinical = data?.clinical_information;
   const validation = data?.validation;
   const confidence = data?.confidence_scores;
+  const document_category = data?.document_category?.toUpperCase();
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -200,10 +201,10 @@ export default function DocumentDetail({ document, onClose }: DocumentDetailProp
                     <AlertTriangle className="w-5 h-5 text-red-600" />
                   )}
                   <span className={`font-medium ${validation.is_complete_referral ? 'text-green-800' : 'text-red-800'}`}>
-                    {validation.is_complete_referral ? 'Complete Referral' : 'Incomplete Referral'}
+                    {document_category}
                   </span>
                 </div>
-                {validation.needs_human_review && (
+                {(validation.needs_human_review) && (
                   <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full">
                     Needs Human Review
                   </span>
