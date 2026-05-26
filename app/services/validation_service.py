@@ -61,7 +61,7 @@ class ValidationService:
         is_incomplete = bool(missing_fields)
         overall_confidence = extracted_data.confidence_scores.get("overall", 0.0)
         needs_human_review = (
-                is_incomplete   # incomplete referral
+                (is_incomplete and overall_confidence > settings.LOW_CONFIDENCE_THRESHOLD)   # incomplete referral
                 or ocr.quality.poor_quality  # poor scan
                 or (not is_incomplete and overall_confidence < settings.CONSIDER_FOR_HUMAN_REVIEW) # low validation confidence
         )

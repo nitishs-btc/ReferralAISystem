@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     EXTRACTION_WEIGHT: float
     VALIDATION_WEIGHT: float
 
+    OCR_OUTPUT_DIRECTORY: str = "ocr_outputs"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

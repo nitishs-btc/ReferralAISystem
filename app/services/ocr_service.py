@@ -48,6 +48,8 @@ class OCRService:
         blank_page_ratio = 1.0 if blank_document else 0.0
         poor_quality = average_confidence < settings.OCR_POOR_QUALITY_THRESHOLD
 
+        self._save_ocr_output(file_path, raw_text, markdown)
+
         return OCRResult(
             raw_text=raw_text,
             markdown=markdown,
@@ -62,3 +64,24 @@ class OCRService:
                 poor_quality=poor_quality,
             ),
         )
+
+    def _save_ocr_output(self, file_path: Path, raw_text: str, markdown: str) -> None:
+        try:
+            output_dir = Path(settings.OCR_OUTPUT_DIRECTORY) / file_path.stem
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            (output_dir / "raw_text.txt").write_text(raw_text, encoding="utf-8")
+            (output_dir / "markdown.md").write_text(markdown, encoding="utf-8")
+
+            self.logger.info(
+                "ocr_output_saved",
+                stage="ocr",
+                path=str(output_dir),
+            )
+        except Exception as exc:
+            # Never let a save failure break the pipeline — log and continue
+            self.logger.warning(
+                "ocr_output_save_failed",
+                stage="ocr",
+                error=str(exc),
+            )

@@ -38,8 +38,8 @@ class ReviewRoutingService:
             reasons.append("OCR quality is below acceptable threshold.")
         if classification.document_state == DocumentState.LOW_CONFIDENCE_REFERRAL:
             reasons.append("Document remained in a low-confidence referral state.")
-        if confidence.needs_human_review and not reasons:
-            reasons.append("Confidence fusion flagged for human review.")
+        # if confidence.needs_human_review and not reasons:
+        #     reasons.append("Confidence fusion flagged for human review.")
 
         if not reasons:
             return ReviewRoutingResult(

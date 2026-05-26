@@ -53,10 +53,9 @@ class ConfidenceFusionService:
         needs_review = (
                 final_score < review_threshold  # low fused confidence
                 or disagreement > settings.CLASSIFIER_DISAGREEMENT_THRESHOLD  # rule vs llm disagree
-                or validation.needs_human_review  # validation flagged it
                 or ocr.quality.poor_quality  # bad scan
                 or (is_valid_referral and final_score < consider_threshold)  # valid but low confidence
-                or (is_incomplete_referral and final_score < settings.LOW_CONFIDENCE_THRESHOLD)  # always review incomplete
+                or (is_incomplete_referral and final_score > settings.LOW_CONFIDENCE_THRESHOLD)  # always review incomplete
         )
 
         return ConfidenceFusionResult(
